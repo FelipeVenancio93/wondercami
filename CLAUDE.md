@@ -42,7 +42,10 @@ Estas invariantes son las que hacen que el juego sea terminable. Se resolvieron
 después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 
 1. **El terreno se suaviza al cargar** (`smoothGround`): entre dos columnas de
-   tierra nunca hay un escalón mayor a 1 tile. Las lomas se caminan como rampas.
+   tierra nunca hay un escalón mayor a 1 tile (las lomas se caminan como
+   rampas), y **todo pozo tiene 3 columnas llanas antes y 3 después**. Sin eso,
+   un salto que arranca bajando una loma te deja en el aire justo cuando llega
+   el borde y no podés saltar: muerte que el jugador no controla.
 2. **Los pozos de 5 tiles o más reciben muelles automáticos** (`buildEnts`). El
    muelle va de la columna `L+2` a la `L+8` contando desde el último apoyo:
    cubre tanto el saltito corto (~30 px) como el salto largo en moto (~120 px).
@@ -60,6 +63,21 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 7. **Los enemigos no persiguen.** Los cangrejos patrullan y rebotan, las ranas
    solo se acercan si Cami está a menos de 110 px. Un enemigo que se queda
    siempre debajo del punto de aterrizaje es una muerte injusta.
+8. **Las gaviotas vuelan raspando el piso y nunca cruzan un pozo.** Si planearan
+   alto se cruzarían con la cabeza de Cami en el pico del salto, y si entraran
+   al pozo te las comerías en el aire durante un salto obligado. Su altura va
+   suavizada (`e.y += (objetivo - e.y) * 0.12`) para que no pegue un salto de
+   16 px al cruzar un escalón.
+9. **Al morir se conserva la botella simple** (se pierden la moto y la doble).
+   Sin esto aparece un espiral: morís, quedás sin arma, no podés matar al
+   enemigo volador que te mató, y morís de nuevo en el mismo lugar para
+   siempre. Fue el bug más caro de encontrar del proyecto.
+10. **Los ítems salen despedidos hacia donde va Cami** (`vx = p.vx * 0.85`).
+    En moto no se puede frenar, así que un ítem que cae en el lugar queda atrás
+    y se pierde sin remedio.
+11. **La botella de emergencia del jefe cae encima de Cami**, no en una posición
+    al azar de la pantalla. Si aparece lejos y estás esquivando cocos, no la
+    agarrás nunca y la pelea se vuelve inganable.
 
 ## Números del balance
 

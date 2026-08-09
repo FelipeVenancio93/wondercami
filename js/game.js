@@ -53,12 +53,32 @@
     // Ningun escalon de tierra a tierra puede subir mas de 1 tile:
     // asi las lomas se caminan como rampas.
     var n = g.length, i, pass;
-    for (pass = 0; pass < 6; pass++) {
-      for (i = 1; i < n; i++)
-        if (g[i] > 0 && g[i - 1] > 0 && g[i] - g[i - 1] > 1) g[i] = g[i - 1] + 1;
-      for (i = n - 2; i >= 0; i--)
-        if (g[i] > 0 && g[i + 1] > 0 && g[i] - g[i + 1] > 1) g[i] = g[i + 1] + 1;
+    function suavizar() {
+      for (pass = 0; pass < 6; pass++) {
+        for (i = 1; i < n; i++)
+          if (g[i] > 0 && g[i - 1] > 0 && g[i] - g[i - 1] > 1) g[i] = g[i - 1] + 1;
+        for (i = n - 2; i >= 0; i--)
+          if (g[i] > 0 && g[i + 1] > 0 && g[i] - g[i + 1] > 1) g[i] = g[i + 1] + 1;
+      }
     }
+    suavizar();
+
+    // Cada pozo lleva 3 columnas llanas antes y 3 despues. Si el salto sale
+    // bajando una loma, Cami esta en el aire cuando llega al borde y no puede
+    // saltar: es una muerte que el jugador no controla.
+    var run = 0;
+    for (i = 0; i <= n; i++) {
+      if (i < n && g[i] === 0) { run++; continue; }
+      if (run > 0) {
+        var s = i - run, e = i - 1, k;
+        if (s - 1 >= 0 && g[s - 1] > 0)
+          for (k = Math.max(0, s - 3); k < s; k++) if (g[k] > 0) g[k] = g[s - 1];
+        if (e + 1 < n && g[e + 1] > 0)
+          for (k = e + 1; k <= Math.min(n - 1, e + 3); k++) if (g[k] > 0) g[k] = g[e + 1];
+      }
+      run = 0;
+    }
+    suavizar();
     return g;
   }
 
@@ -222,8 +242,8 @@
             tt: 30 + Math.floor(Math.random() * 60), dir: -1, on: true });
           break;
         case 'gull':
-          // vuelan a la altura del cuerpo: hay que saltarlas o botellearlas
-          list.push({ t: 'gull', x: c * TILE, y: top - 22, w: 12, h: 7, on: false, a: 0 });
+          // vuelan bajo: hay que saltarlas (o botellearlas)
+          list.push({ t: 'gull', x: c * TILE, y: top - 15, w: 12, h: 7, on: false, a: 0 });
           break;
         case 'rock':
           list.push({ t: 'rock', x: c * TILE + 2, y: top - 10, w: 12, h: 10 });
@@ -272,9 +292,14 @@
   function respawn() {
     var L = G.level;
     var sx = G.p.spawnX;
+    // Al morir se pierde la moto y la botella doble, pero si tenias arma
+    // volves con la simple. Si te dejaramos sin nada, un enemigo volador
+    // podia dejarte trabado para siempre en el mismo lugar.
+    var keep = G.p.weapon > 0 ? 1 : 0;
     buildEnts();
     G.p = makePlayer(sx);
     G.p.spawnX = sx;
+    G.p.weapon = keep;
     G.p.inv = 90;
     G.bots = []; G.fx = [];
     if (L.boss && G.boss) { G.boss.hp = G.boss.maxhp; G.boss.flash = 0; }
@@ -532,15 +557,24 @@
 
         case 'gull':
           if (!e.on) {
-            if (p.x > e.x - 220 && p.x < e.x + 40) { e.on = true; e.x = Math.max(e.x, G.cam + vw + 16); }
+            // Arranca desde donde esta, sin teletransportarse al borde de la
+            // pantalla: asi la ves venir de lejos y podes preparar el salto.
+            if (p.x > e.x - 200) e.on = true;
             break;
           }
-          e.x -= 1.15; e.a += 0.075;
-          // planea en ondas sobre el suelo que tenga abajo: cuando baja hay
-          // que saltarla, cuando sube se pasa caminando por debajo
+          e.x -= 1.0; e.a += 0.07;
+          // Vuela raspando el piso, con muy poco vaiven, para que SIEMPRE se
+          // pueda saltar por arriba. Si planeara alto se cruzaria con la
+          // cabeza de Cami en el pico del salto y, si venis sin botellas,
+          // quedarias trabado sin forma de pasar.
           var gt = topAtX(e.x + 6);
           if (gt > 1e8) gt = WATER_Y;
-          e.y = gt - 32 + Math.sin(e.a) * 15;
+          // suavizado: si no, al cruzar un escalon del terreno pega un salto
+          // de 16 px de golpe justo cuando la tenes encima
+          e.y += ((gt - 15 + Math.sin(e.a) * 5) - e.y) * 0.12;
+          // Nunca cruza un pozo: si se metiera ahi, te la comerias en el aire
+          // durante un salto obligado, sin manera de esquivarla.
+          if (topAtX(e.x - 10) > 1e8) e.dead = true;
           if (e.x < G.cam - 40) e.dead = true;
           break;
 
@@ -576,8 +610,10 @@
             e.open = 26;
             addScore(50, e.x, e.y);
             Snd.sfx('egg');
+            // El item sale despedido hacia donde va Cami: si no, yendo en
+            // moto (que no frena) le cae siempre atras y lo pierde.
             G.ents.push({ t: 'item', kind: e.item, x: e.x, y: e.y - 12, w: 10, h: 9,
-              vy: -2.6, life: 640, on: false, bob: 0 });
+              vx: clamp(p.vx * 0.85, -3, 3), vy: -2.6, life: 640, on: false, bob: 0 });
           }
           break;
 
@@ -586,8 +622,10 @@
           if (e.life <= 0) { e.dead = true; break; }
           if (!e.on) {
             e.vy += 0.28; e.y += e.vy;
+            e.x += (e.vx || 0);
+            e.vx = (e.vx || 0) * 0.985;
             var ti = topAtX(e.x + 5);
-            if (e.vy > 0 && ti < 1e8 && e.y + e.h >= ti) { e.y = ti - e.h; e.on = true; }
+            if (e.vy > 0 && ti < 1e8 && e.y + e.h >= ti) { e.y = ti - e.h; e.vx = 0; e.on = true; }
             if (e.y > LEVEL_H + 20) e.dead = true;
           } else { e.bob += 0.12; }
           if (hit(p, e)) { giveItem(e.kind, e.x, e.y); e.dead = true; }
@@ -780,8 +818,12 @@
           });
           if (!hasItem && G.bossNoWeaponT > 180) {
             G.bossNoWeaponT = 0;
-            G.ents.push({ t: 'item', kind: 'botella2', x: G.cam + 30 + Math.random() * 80,
-              y: 20, w: 10, h: 9, vy: 0, life: 900, on: false, bob: 0 });
+            // Cae justo encima de Cami: si aparece lejos y ella se queda
+            // esquivando cocos, nunca la agarra y la pelea es inganable.
+            G.ents.push({ t: 'item', kind: 'botella2', x: G.p.x + G.p.w / 2 - 5,
+              y: Math.max(4, G.p.y - 70), w: 10, h: 9, vx: 0, vy: 0,
+              life: 900, on: false, bob: 0 });
+            G.fx.push({ t: 'txt', x: G.p.x - 14, y: G.p.y - 20, vy: -0.4, life: 80, s: 'BOTELLA!' });
           }
         }
         break;

@@ -55,6 +55,16 @@
 
     // contra el jefe: mantener distancia y tirar botellas
     if (G.boss && !G.boss.dead) {
+      // si esta sin arma, primero ir a buscar la botella que aparece
+      var drop = es.filter(function (e) {
+        return e.t === 'item' && (e.kind === 'botella' || e.kind === 'botella2');
+      })[0];
+      if (p.weapon === 0 && drop) {
+        I.right = drop.x > p.x + 2; I.left = drop.x < p.x - 2;
+        I.jumpP = jump && (p.onGround || p.coyote > 0);
+        Game.update();
+        return;
+      }
       var d = G.boss.x - p.x;
       I.right = d > 130; I.left = d < 100;
       I.jumpP = jump && (p.onGround || p.coyote > 0);

@@ -1,5 +1,5 @@
 /* WonderCami — service worker: el juego queda jugable sin conexion. */
-var CACHE = 'wondercami-v1';
+var CACHE = 'wondercami-v2';
 var FILES = [
   './',
   './index.html',

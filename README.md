@@ -26,6 +26,8 @@ En la compu: flechas para moverse, **Z** o espacio para saltar, **X** para tirar
 - La **barra de vitalidad baja sola**. Si llega a cero, se acabó. Se recarga
   comiendo la picada que aparece en el camino: queso, salamín, aceituna, maní.
 - Un solo golpe y perdés una vida. Hay **checkpoint** a mitad de cada round.
+  Al morir perdés la moto y la botella doble, pero volvés con una botella
+  simple si tenías arma.
 - Los **huevos** del camino esconden ítems:
   - 🏍️ **Moto** — vas más rápido pero no podés frenar. Aguanta un golpe por vos.
   - 🍷 **Botella** — tu arma. La **doble** tira dos de una.

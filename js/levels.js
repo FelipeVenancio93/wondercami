@@ -40,9 +40,12 @@
       { t: 'gull', c: 102 }, { t: 'gull', c: 170 },
       { t: 'egg', c: 14, item: 'queso' },
       { t: 'egg', c: 55, item: 'botella' },
-      { t: 'egg', c: 91, item: 'salamin' },
+      // La moto entra temprano: el Round 1 hace de tutorial y conviene
+      // tener pista por delante para acostumbrarse a que no frena.
+      { t: 'egg', c: 83, item: 'moto' },
+      { t: 'egg', c: 105, item: 'salamin' },
       { t: 'egg', c: 126, item: 'aceituna' },
-      { t: 'egg', c: 158, item: 'moto' },
+      { t: 'egg', c: 158, item: 'queso' },
       { t: 'egg', c: 196, item: 'queso' }
     ],
     checkpoint: 104
