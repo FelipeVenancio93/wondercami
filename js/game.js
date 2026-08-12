@@ -275,7 +275,7 @@
       onGround: false, face: 1, anim: 0, animT: 0,
       moto: false, weapon: 0, vit: VIT_MAX, inv: 0, star: 0,
       throwT: 0, jumpF: 0, dead: false, deadT: 0, spawnX: x,
-      coyote: 0
+      coyote: 0, jumpBuf: 0
     };
   }
 
@@ -365,8 +365,17 @@
 
     // ---- salto
     if (p.onGround) p.coyote = 6; else if (p.coyote > 0) p.coyote--;
-    if (I.jumpP && (p.onGround || p.coyote > 0)) {
-      p.vy = -JUMP_V; p.onGround = false; p.coyote = 0; p.jumpF = JUMP_HOLD_F;
+    // Buffer de salto: si apretaste un toque antes de tocar el piso, el salto
+    // igual sale. Con los dedos en la pantalla es imposible acertar el frame
+    // exacto y sin esto parece que el boton no responde.
+    // Solo se guarda si venis cayendo o ya estas en el piso: guardar un toque
+    // hecho mientras subis genera un salto fantasma al aterrizar, que te
+    // manda de cabeza contra lo que venga.
+    if (I.jumpP && (p.onGround || p.vy > 0)) p.jumpBuf = 6;
+    if (p.jumpBuf > 0) p.jumpBuf--;
+    if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
+      p.vy = -JUMP_V; p.onGround = false; p.coyote = 0; p.jumpBuf = 0;
+      p.jumpF = JUMP_HOLD_F;
       Snd.sfx('jump');
     }
     if (p.jumpF > 0 && I.jump && p.vy < 0) { p.vy -= JUMP_HOLD; p.jumpF--; }
@@ -464,8 +473,12 @@
     var p = G.p;
     var bx = p.x + (p.face > 0 ? p.w - 2 : -6);
     var by = p.y + 4;
-    G.bots.push({ x: bx, y: by, w: 8, h: 8, vx: 3.2 * p.face, vy: -2.9, a: 0 });
-    if (dbl) G.bots.push({ x: bx, y: by, w: 8, h: 8, vx: 2.2 * p.face, vy: -4.3, a: 0 });
+    // La botella principal sale casi recta: con el arco de antes pasaba por
+    // encima de todo lo que estuviera a menos de 150 px y el arma no te
+    // defendia de cerca, que es justo cuando la necesitas.
+    G.bots.push({ x: bx, y: by, w: 8, h: 8, vx: 3.4 * p.face, vy: -1.1, a: 0 });
+    // La doble agrega una lobeada, para alcanzar lo que esta lejos o alto
+    if (dbl) G.bots.push({ x: bx, y: by, w: 8, h: 8, vx: 2.3 * p.face, vy: -4.0, a: 0 });
   }
 
   function giveItem(kind, x, y) {
@@ -566,19 +579,22 @@
           if (!e.on) {
             // Arranca desde donde esta, sin teletransportarse al borde de la
             // pantalla: asi la ves venir de lejos y podes preparar el salto.
-            if (p.x > e.x - 200) e.on = true;
+            if (p.x > e.x - 200) {
+              e.on = true;
+              // Fija la altura al activarse y vuela derecho. Antes seguia el
+              // suelo de abajo suyo y al bajar de una loma se te venia encima
+              // en pleno salto, sin nada que pudieras hacer.
+              var gp = topAtX(p.x + p.w / 2);
+              e.fly = (gp > 1e8 ? WATER_Y : gp) - 15;
+            }
             break;
           }
-          e.x -= 1.0; e.a += 0.07;
+          e.x -= 0.75; e.a += 0.06;
           // Vuela raspando el piso, con muy poco vaiven, para que SIEMPRE se
           // pueda saltar por arriba. Si planeara alto se cruzaria con la
           // cabeza de Cami en el pico del salto y, si venis sin botellas,
           // quedarias trabado sin forma de pasar.
-          var gt = topAtX(e.x + 6);
-          if (gt > 1e8) gt = WATER_Y;
-          // suavizado: si no, al cruzar un escalon del terreno pega un salto
-          // de 16 px de golpe justo cuando la tenes encima
-          e.y += ((gt - 15 + Math.sin(e.a) * 5) - e.y) * 0.12;
+          e.y = e.fly + Math.sin(e.a) * 4;
           // Nunca cruza un pozo: si se metiera ahi, te la comerias en el aire
           // durante un salto obligado, sin manera de esquivarla.
           if (topAtX(e.x - 10) > 1e8) e.dead = true;
@@ -1064,6 +1080,19 @@
     ctx.drawImage(img, Math.round(x), Math.round(y));
   }
 
+  /* Sombra apoyada en el suelo. Es lo que despega un obstaculo del fondo:
+     sin ella la piedra se confunde con la arena. */
+  function sombra(ctx, cx, groundY, ancho, alpha) {
+    if (groundY > 1e8) return;
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 0.28 : alpha;
+    ctx.fillStyle = '#3a2c18';
+    ctx.beginPath();
+    ctx.ellipse(Math.round(cx), Math.round(groundY) - 1, ancho, Math.max(2, ancho * 0.35), 0, 0, 6.284);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawEnts(ctx) {
     var i, e, x, y;
     // palmeras primero (van detras del suelo)
@@ -1087,7 +1116,16 @@
         case 'crab': blit(ctx, S.crab[e.a || 0][e.vx < 0 ? 'l' : 'r'], x, y); break;
         case 'frog': blit(ctx, S.frog[e.a || 0][e.vx < 0 ? 'l' : 'r'], x, y - 2); break;
         case 'gull': blit(ctx, S.gull[(G.t >> 3) & 1].l, x, y); break;
-        case 'coco': case 'bcoco': blit(ctx, S.coco, x, y); break;
+        case 'coco': case 'bcoco': {
+          // Aviso: marca en el suelo donde va a caer, que se agranda al bajar
+          var gy2 = topAtX(e.x + 4);
+          if (gy2 < 1e8) {
+            var cerca = clamp(1 - (gy2 - (e.y + e.h)) / 90, 0.15, 1);
+            sombra(ctx, x + 4, gy2, 3 + cerca * 4, 0.18 + cerca * 0.3);
+          }
+          blit(ctx, S.coco, x - 1, y - 1);
+          break;
+        }
         case 'octo':
           // solo se ve la parte que asoma sobre el agua
           ctx.save();
@@ -1095,8 +1133,14 @@
           blit(ctx, S.octo[e.a || 0], x, y);
           ctx.restore();
           break;
-        case 'rock': blit(ctx, S.rock, x - 2, y); break;
-        case 'fire': blit(ctx, S.fire[(G.t >> 3) & 1], x - 1, y); break;
+        case 'rock':
+          sombra(ctx, x + 6, e.y + e.h, 8);
+          blit(ctx, S.rock, x - 3, y);
+          break;
+        case 'fire':
+          sombra(ctx, x + 5, e.y + e.h, 7, 0.22);
+          blit(ctx, S.fire[(G.t >> 3) & 1], x - 1, y);
+          break;
         case 'egg':
           blit(ctx, e.open > 0 ? S.eggOpen : S.egg, x, y + (e.open > 0 ? 0 : Math.sin(G.t * 0.08) * 1));
           break;

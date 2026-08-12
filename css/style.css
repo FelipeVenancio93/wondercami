@@ -55,11 +55,11 @@ html, body {
 }
 .btn.on { transform: scale(.92); background: rgba(255, 255, 255, .3); }
 
-.dir  { width: 62px; height: 62px; }
-.act  { width: 66px; height: 66px; flex-direction: column; gap: 2px; }
-.act .lbl { font-size: 9px; letter-spacing: .5px; font-weight: 700; }
+.dir  { width: 76px; height: 76px; font-size: 26px; }
+.act  { width: 78px; height: 78px; flex-direction: column; gap: 2px; }
+.act .lbl { font-size: 10px; letter-spacing: .5px; font-weight: 700; }
 
-.jump { background: rgba(224, 51, 47, .42); border-color: rgba(255, 157, 149, .6); width: 74px; height: 74px; }
+.jump { background: rgba(224, 51, 47, .42); border-color: rgba(255, 157, 149, .6); width: 90px; height: 90px; }
 .fire { background: rgba(46, 125, 79, .42); border-color: rgba(120, 220, 160, .6); }
 
 /* En computadora se juega con el teclado: los botones tactiles estorban */

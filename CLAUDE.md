@@ -34,6 +34,7 @@ Si alguna vez quedó registrado, limpiarlo desde la consola:
 | `js/levels.js` | Los 4 rounds del Área 1. El terreno se escribe `"altura*repeticiones"`; `0` es agua. |
 | `js/game.js` | Motor: física, entidades, jefe, HUD, estados. |
 | `js/main.js` | Escalado del canvas, controles, loop a 60 Hz fijo, PWA. |
+| `tools/bot.js` | Autopiloto de prueba (ver abajo). |
 
 ## Controles
 
@@ -48,7 +49,6 @@ Un solo build sirve para celular y computadora; el modo se detecta solo.
 > teclas mapeadas. Sin el keyup, ALT abre el menú del navegador (Chrome lo
 > activa al soltar); sin el keydown, ALT+← te manda a la página anterior en
 > plena partida. No lo saques.
-| `tools/bot.js` | Autopiloto de prueba (ver abajo). |
 
 ## Reglas del motor que NO hay que romper
 
@@ -77,11 +77,11 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 7. **Los enemigos no persiguen.** Los cangrejos patrullan y rebotan, las ranas
    solo se acercan si Cami está a menos de 110 px. Un enemigo que se queda
    siempre debajo del punto de aterrizaje es una muerte injusta.
-8. **Las gaviotas vuelan raspando el piso y nunca cruzan un pozo.** Si planearan
-   alto se cruzarían con la cabeza de Cami en el pico del salto, y si entraran
-   al pozo te las comerías en el aire durante un salto obligado. Su altura va
-   suavizada (`e.y += (objetivo - e.y) * 0.12`) para que no pegue un salto de
-   16 px al cruzar un escalón.
+8. **Las gaviotas vuelan en línea recta y nunca cruzan un pozo.** Al activarse
+   fijan su altura (`e.fly`) tomando el suelo que tiene Cami debajo, y de ahí
+   en más no la cambian. Antes seguían el terreno de abajo suyo: al bajar de
+   una loma se te venían encima en pleno salto, sin nada que pudieras hacer.
+   Fueron la causa de 19 de cada 26 muertes hasta que se arregló esto.
 9. **Al morir se conserva la botella simple** (se pierden la moto y la doble).
    Sin esto aparece un espiral: morís, quedás sin arma, no podés matar al
    enemigo volador que te mató, y morís de nuevo en el mismo lugar para
@@ -96,6 +96,13 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
     saca la moto y te da 100 frames de invencibilidad. Lo único que mata en
     moto es caer al agua, porque no se puede frenar. Verificado con los seis
     peligros, en el aire y al borde de un pozo.
+13. **El buffer de salto solo guarda el toque si venís cayendo** (`p.vy > 0`) o
+    ya estás en el piso, y dura 6 frames. Si guardara un toque hecho mientras
+    subís, al aterrizar sale un salto fantasma que te manda de cabeza contra
+    lo que venga: medido, subía las muertes del Round 3 de 1 a 107.
+14. **La botella principal sale casi recta.** Si vuelve a salir en arco alto,
+    el arma deja de servir a menos de 150 px, que es justo cuando la necesitás
+    contra algo que se te viene encima.
 
 ## Números del balance
 
@@ -104,6 +111,9 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 | Velocidad a pie | 2.1 px/frame | ~126 px/s |
 | Corriendo (CTRL) | 2.85 px/frame | solo teclado. **Nunca más lento que 2.1**: si el sprint bajara la velocidad base habría que rehacer todos los muelles |
 | Cadencia de tiro | 7 frames, hasta 4 botellas (6 con la doble) | se mantiene apretado y sale en ráfaga |
+| Botella principal | vx 3.4, vy −1.1 | **casi recta**. Con el arco de antes pasaba por encima de todo lo que estuviera a menos de 150 px |
+| Botella de la doble | vx 2.3, vy −4.0 | lobeada, para lo lejano y lo alto |
+| Buffer de salto | 6 frames, solo cayendo | ver invariante 13 |
 | Velocidad en moto | 3.1 px/frame | no se puede frenar |
 | Salto | v=7.8, g=0.38 | 80 px de alto, ~86 px de alcance (120 en moto) |
 | Vitalidad | 100 en 52 s | obliga a comer, como el original |
