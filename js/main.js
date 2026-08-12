@@ -11,6 +11,7 @@
 
   var Input = {
     left: false, right: false, jump: false, fire: false,
+    run: false,                     // solo teclado: Ctrl corre ademas de tirar
     jumpP: false, fireP: false, anyP: false
   };
   var pressQ = { jump: false, fire: false, any: false };
@@ -29,6 +30,7 @@
     function down(ev) {
       ev.preventDefault();
       Snd.unlock();
+      modoTeclado(false);
       active[ev.pointerId] = true;
       el.classList.add('on');
       setBtn(name, true);
@@ -45,18 +47,45 @@
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
+  /* Mapa de teclado, estilo puerto de PC de los arcades de los 80:
+     flechas para moverse, ALT salta, CTRL corre y tira botellas.
+     Dejamos Z/X/espacio como alternativas para el que las prefiera. */
   var KEYS = {
     ArrowLeft: 'left', KeyA: 'left',
     ArrowRight: 'right', KeyD: 'right',
+    AltLeft: 'jump', AltRight: 'jump',
     KeyZ: 'jump', Space: 'jump', ArrowUp: 'jump', KeyW: 'jump',
+    ControlLeft: 'fire', ControlRight: 'fire',
     KeyX: 'fire', ArrowDown: 'fire', KeyS: 'fire', ShiftLeft: 'fire'
   };
+  var RUN_KEYS = { ControlLeft: 1, ControlRight: 1 };
 
   function onKey(ev, down) {
     var n = KEYS[ev.code];
-    if (n) { ev.preventDefault(); setBtn(n, down); }
+    if (n) {
+      // Imprescindible: sin esto ALT abre el menu del navegador y
+      // ALT+flecha izquierda te manda a la pagina anterior en plena partida.
+      ev.preventDefault();
+      setBtn(n, down);
+      if (RUN_KEYS[ev.code]) Input.run = down;
+      modoTeclado(true);
+    }
     if (down) { pressQ.any = true; Snd.unlock(); }
     if (down && ev.code === 'KeyM') toggleMute();
+  }
+
+  /* ---------------- teclado o tactil ---------------- */
+
+  var hayTactil = ('ontouchstart' in global) || navigator.maxTouchPoints > 0;
+  var conTeclado = !hayTactil;
+
+  function modoTeclado(si) {
+    if (conTeclado === si) return;
+    conTeclado = si;
+    document.body.classList.toggle('teclado', conTeclado);
+    if (global.Game) Game.setInputMode(conTeclado ? 'teclado' : 'tactil');
+    if (conTeclado) { Input.left = Input.right = Input.jump = Input.fire = false; }
+    else Input.run = false;
   }
 
   /* ---------------- escalado ---------------- */
@@ -79,7 +108,8 @@
     ctx = canvas.getContext('2d', { alpha: false });
     ctx.imageSmoothingEnabled = false;
 
-    document.body.classList.toggle('portrait', h > w);
+    // El cartel de "gira el celular" solo tiene sentido si hay pantalla tactil
+    document.body.classList.toggle('portrait', h > w && hayTactil);
   }
 
   /* ---------------- audio / pantalla ---------------- */
@@ -144,6 +174,8 @@
   function boot() {
     canvas = document.getElementById('game');
     Game.init();
+    document.body.classList.toggle('teclado', conTeclado);
+    Game.setInputMode(conTeclado ? 'teclado' : 'tactil');
     resize();
 
     bindButton(document.getElementById('bLeft'), 'left');

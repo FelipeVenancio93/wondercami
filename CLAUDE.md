@@ -34,6 +34,20 @@ Si alguna vez quedó registrado, limpiarlo desde la consola:
 | `js/levels.js` | Los 4 rounds del Área 1. El terreno se escribe `"altura*repeticiones"`; `0` es agua. |
 | `js/game.js` | Motor: física, entidades, jefe, HUD, estados. |
 | `js/main.js` | Escalado del canvas, controles, loop a 60 Hz fijo, PWA. |
+
+## Controles
+
+Un solo build sirve para celular y computadora; el modo se detecta solo.
+
+- **Táctil**: botones en pantalla. Se ocultan (`body.teclado`) apenas se usa una
+  tecla, y vuelven apenas se toca la pantalla.
+- **Teclado**: flechas mover, **ALT** saltar, **CTRL** correr y tirar.
+  Z/espacio y X quedan como alternativas.
+
+> `onKey` hace `preventDefault()` **tanto en keydown como en keyup** para las
+> teclas mapeadas. Sin el keyup, ALT abre el menú del navegador (Chrome lo
+> activa al soltar); sin el keydown, ALT+← te manda a la página anterior en
+> plena partida. No lo saques.
 | `tools/bot.js` | Autopiloto de prueba (ver abajo). |
 
 ## Reglas del motor que NO hay que romper
@@ -78,12 +92,18 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 11. **La botella de emergencia del jefe cae encima de Cami**, no en una posición
     al azar de la pantalla. Si aparece lejos y estás esquivando cocos, no la
     agarrás nunca y la pelea se vuelve inganable.
+12. **Con la moto puesta, ningún enemigo ni obstáculo mata**: `hurtPlayer` te
+    saca la moto y te da 100 frames de invencibilidad. Lo único que mata en
+    moto es caer al agua, porque no se puede frenar. Verificado con los seis
+    peligros, en el aire y al borde de un pozo.
 
 ## Números del balance
 
 | Qué | Valor | Por qué |
 |---|---|---|
 | Velocidad a pie | 2.1 px/frame | ~126 px/s |
+| Corriendo (CTRL) | 2.85 px/frame | solo teclado. **Nunca más lento que 2.1**: si el sprint bajara la velocidad base habría que rehacer todos los muelles |
+| Cadencia de tiro | 7 frames, hasta 4 botellas (6 con la doble) | se mantiene apretado y sale en ráfaga |
 | Velocidad en moto | 3.1 px/frame | no se puede frenar |
 | Salto | v=7.8, g=0.38 | 80 px de alto, ~86 px de alcance (120 en moto) |
 | Vitalidad | 100 en 52 s | obliga a comer, como el original |

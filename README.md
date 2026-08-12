@@ -12,14 +12,26 @@ querés que quede como una app usá *Agregar a pantalla de inicio*. Anda offline
 
 ## Cómo se juega
 
+**En el celular** (los botones aparecen solos al tocar la pantalla):
+
 | Control | Qué hace |
 |---|---|
 | ◀ ▶ | Moverse |
 | **SALTAR** | Saltar (cuanto más lo mantenés, más alto) |
-| **BOTELLA** | Tirar una botella de vino (hay que conseguirla primero) |
+| **BOTELLA** | Tirar vino. Mantenelo apretado y sale en ráfaga |
 
-En la compu: flechas para moverse, **Z** o espacio para saltar, **X** para tirar.
-**M** silencia.
+**En la computadora** (los botones táctiles desaparecen al usar el teclado):
+
+| Tecla | Qué hace |
+|---|---|
+| **← →** | Moverse |
+| **ALT** | Saltar |
+| **CTRL** | Correr y tirar vino a la vez |
+| Z / espacio | Saltar (alternativa) |
+| X | Tirar vino (alternativa) |
+| M | Silenciar |
+
+Hay que conseguir la botella antes de poder tirar: está en los huevos.
 
 ## Las reglas del arcade del 86
 
@@ -29,7 +41,9 @@ En la compu: flechas para moverse, **Z** o espacio para saltar, **X** para tirar
   Al morir perdés la moto y la botella doble, pero volvés con una botella
   simple si tenías arma.
 - Los **huevos** del camino esconden ítems:
-  - 🏍️ **Moto** — vas más rápido pero no podés frenar. Aguanta un golpe por vos.
+  - 🏍️ **Moto** — vas más rápido pero **no podés frenar**. Si te golpea un
+    enemigo u obstáculo perdés la moto, no la vida. Lo que sí te mata con la
+    moto puesta es caer al agua: ojo con los pozos.
   - 🍷 **Botella** — tu arma. La **doble** tira dos de una.
   - ⭐ **Estrella** — invencible ocho segundos.
   - **1UP** — una vida más.

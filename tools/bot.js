@@ -75,6 +75,7 @@
 
     if (!hold) I.right = true;
     I.jumpP = jump && (p.onGround || p.coyote > 0);
+    I.fire = true;                 // el disparo ahora es sostenido, en rafaga
     I.fireP = (G.t % 11 === 0);
     Game.update();
   }

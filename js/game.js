@@ -10,7 +10,7 @@
 
   // Fisica
   var GRAV = 0.38, MAXFALL = 7.5;
-  var RUN = 2.1, ACC = 0.5, MOTO_SPEED = 3.1;
+  var RUN = 2.1, SPRINT = 2.85, ACC = 0.5, MOTO_SPEED = 3.1;
   var JUMP_V = 7.8, JUMP_HOLD = 0.22, JUMP_HOLD_F = 11;
   var VIT_MAX = 100, VIT_DRAIN = 100 / (52 * 60);
 
@@ -36,7 +36,7 @@
     level: null, cam: 0, camF: 0, camMax: 0,
     p: null, ents: [], bots: [], fx: [], boss: null,
     t: 0, nextLifeAt: 20000, shake: 0, flash: 0,
-    bossNoWeaponT: 0
+    bossNoWeaponT: 0, inputMode: 'tactil'
   };
 
   /* ================= utilidades ================= */
@@ -355,7 +355,9 @@
       var want = 0;
       if (I.left) want -= 1;
       if (I.right) want += 1;
-      var target = want * RUN;
+      // Ctrl acelera. Nunca va mas lento que antes, asi que todos los saltos
+      // del nivel siguen entrando igual: correr solo da margen de sobra.
+      var target = want * (I.run ? SPRINT : RUN);
       if (want !== 0) p.face = want;
       if (p.vx < target) p.vx = Math.min(target, p.vx + ACC);
       else if (p.vx > target) p.vx = Math.max(target, p.vx - ACC);
@@ -370,12 +372,13 @@
     if (p.jumpF > 0 && I.jump && p.vy < 0) { p.vy -= JUMP_HOLD; p.jumpF--; }
     else p.jumpF = 0;
 
-    // ---- tirar botella
-    if (I.fireP && p.weapon > 0 && p.throwT === 0) {
-      var maxB = p.weapon === 2 ? 4 : 2;
+    // ---- tirar botella: se mantiene apretado y sale en rafaga, como el
+    // arma arrojadiza del arcade original
+    if ((I.fire || I.fireP) && p.weapon > 0 && p.throwT === 0) {
+      var maxB = p.weapon === 2 ? 6 : 4;
       if (G.bots.length < maxB) {
         throwBottle(p.weapon === 2);
-        p.throwT = 12;
+        p.throwT = 7;
         Snd.sfx('throw');
       }
     }
@@ -490,10 +493,14 @@
     var p = G.p;
     if (p.inv > 0 || p.star > 0 || p.dead) return;
     if (p.moto) {
+      // La moto se come el golpe: aviso bien claro para que no parezca
+      // que perdiste una vida.
       p.moto = false; p.inv = 100; p.h = PH; p.w = PW;
-      puff(p.x + 8, p.y + 12, '#e0332f', 12, 2);
+      puff(p.x + 8, p.y + 12, '#e0332f', 16, 2.4);
+      puff(p.x + 8, p.y + 14, '#9a9aa5', 8, 1.6);
+      G.fx.push({ t: 'txt', x: p.x - 24, y: p.y - 16, vy: -0.42, life: 80, s: 'CHAU MOTO!' });
       Snd.sfx('hurt');
-      G.shake = 8;
+      G.shake = 10; G.flash = 6;
       return;
     }
     killPlayer('hit');
@@ -1253,10 +1260,18 @@
     blit(ctx, S.cami.run[Math.floor(G.t / 5) % 4].r, px, gy - 25);
     blit(ctx, S.rosita.run[(G.t >> 3) & 1].r, px - 32, gy - 14);
 
+    var teclado = G.inputMode === 'teclado';
     if ((G.t >> 4) % 2 === 0)
-      Font.drawCenter(ctx, 'TOCA PARA JUGAR', cx, 112, '#ffffff', 2);
-    Font.drawCenter(ctx, 'RECORD ' + pad(G.hi, 7), cx, 134, '#ffd93b', 1);
-    Font.drawCenter(ctx, 'RESCATA A ROSITA DEL CAPITAN COCO', cx, LEVEL_H - 12, 'rgba(255,255,255,0.75)', 1);
+      Font.drawCenter(ctx, teclado ? 'APRETA UNA TECLA' : 'TOCA PARA JUGAR', cx, 110, '#ffffff', 2);
+    Font.drawCenter(ctx, 'RECORD ' + pad(G.hi, 7), cx, 132, '#ffd93b', 1);
+
+    if (teclado) {
+      Font.drawCenter(ctx, 'FLECHAS MOVER    ALT SALTAR', cx, LEVEL_H - 31, '#ffffff', 1);
+      Font.drawCenter(ctx, 'CTRL CORRER Y TIRAR VINO', cx, LEVEL_H - 21, '#6fd0ff', 1);
+      Font.drawCenter(ctx, 'TAMBIEN Z SALTA Y X TIRA', cx, LEVEL_H - 9, 'rgba(255,255,255,0.55)', 1);
+    } else {
+      Font.drawCenter(ctx, 'RESCATA A ROSITA DEL CAPITAN COCO', cx, LEVEL_H - 12, 'rgba(255,255,255,0.75)', 1);
+    }
   }
 
   function drawReady(ctx) {
@@ -1356,6 +1371,11 @@
     if (G.st === 'ending') drawEnding(ctx);
 
     ctx.restore();
+
+    if (G.flash > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (G.flash / 14) + ')';
+      ctx.fillRect(0, HUD_H, vw, LEVEL_H);
+    }
     drawHUD(ctx);
   }
 
@@ -1374,6 +1394,7 @@
     update: update,
     draw: draw,
     setViewport: function (w) { vw = w; },
+    setInputMode: function (m) { G.inputMode = m; },
     VH: VH,
     HUD_H: HUD_H,
     state: function () { return G.st; },
