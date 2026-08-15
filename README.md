@@ -31,7 +31,9 @@ querés que quede como una app usá *Agregar a pantalla de inicio*. Anda offline
 | X | Tirar vino (alternativa) |
 | M | Silenciar |
 
-Hay que conseguir la botella antes de poder tirar: está en los huevos.
+Hay que conseguir la botella antes de poder tirar: está en los huevos. En el
+Round 1 la primera botella aparece antes que el primer enemigo, así que arrancás
+armada.
 
 ## Las reglas del arcade del 86
 

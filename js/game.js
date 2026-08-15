@@ -14,6 +14,10 @@
   var JUMP_V = 7.8, JUMP_HOLD = 0.22, JUMP_HOLD_F = 11;
   var VIT_MAX = 100, VIT_DRAIN = 100 / (52 * 60);
 
+  // Donde se para Cami en la pantalla. Cuanto mas a la izquierda, mas terreno
+  // ves por delante y mas tiempo tenes para reaccionar.
+  var ANCLA = 0.32;
+
   var PW = 10, PH = 22;              // hitbox de Cami a pie
   var PW_MOTO = 20, PH_MOTO = 20;
 
@@ -36,7 +40,7 @@
     level: null, cam: 0, camF: 0, camMax: 0,
     p: null, ents: [], bots: [], fx: [], boss: null,
     t: 0, nextLifeAt: 20000, shake: 0, flash: 0,
-    bossNoWeaponT: 0, inputMode: 'tactil'
+    bossNoWeaponT: 0, inputMode: 'tactil', goT: 0, freeze: 0
   };
 
   /* ================= utilidades ================= */
@@ -104,13 +108,26 @@
     return clamp(c, 0, n - 1);
   }
 
-  // Ubica un bicho o un obstaculo: tierra segura Y a mas de 4 columnas de
-  // cualquier otro peligro. Si no hay lugar, devuelve -1 y no se coloca:
-  // preferimos un round con menos enemigos que un amontonamiento mortal.
-  function placeHazardCol(g, c, used) {
-    var n = g.length, SEP = 4;
+  // Ritmo de entrada: al principio del round los peligros van MUY separados y
+  // se van juntando. Sin esto el Round 1 te tira un bicho cada 1,3 segundos
+  // desde el primer segundo y una persona con reflejos normales muere a los 2s,
+  // antes de entender que boton es cual.
+  //   sepEn(col) -> columnas minimas de separacion en esa altura del nivel
+  function sepEn(col, L) {
+    var largoRampa = L.cols * (L.def.rampa === undefined ? 0.4 : L.def.rampa);
+    if (largoRampa <= 0) return 4;
+    var t = clamp(col / largoRampa, 0, 1);
+    return Math.round(18 - (18 - 4) * t);
+  }
+
+  // Ubica un bicho o un obstaculo: tierra segura Y separado del resto segun el
+  // ritmo. Si no hay lugar devuelve -1 y no se coloca: preferimos un round con
+  // menos enemigos que un amontonamiento imposible.
+  function placeHazardCol(g, c, used, L) {
+    var n = g.length;
+    var zonaSegura = L.def.zonaSegura === undefined ? 0 : L.def.zonaSegura;
     function safe(i) {
-      if (i < 0 || i >= n || used[i]) return false;
+      if (i < zonaSegura || i >= n || used[i]) return false;
       for (var j = i - 5; j <= i + 5; j++) {
         if (j < 0 || j >= n || g[j] === 0) return false;
       }
@@ -121,6 +138,7 @@
       if (safe(c + d)) { c += d; break; }
       if (d === n - 1) return -1;
     }
+    var SEP = sepEn(c, L);
     for (var u = -SEP; u <= SEP; u++) used[c + u] = true;
     return c;
   }
@@ -224,7 +242,7 @@
       var lethal = (e.t === 'crab' || e.t === 'frog' || e.t === 'gull' ||
                     e.t === 'rock' || e.t === 'fire');
       if (lethal) {
-        c = placeHazardCol(g, c, used);
+        c = placeHazardCol(g, c, used, L);
         if (c < 0) continue;                       // no habia lugar seguro
       } else {
         c = nearestGroundCol(g, c, 1, 1);          // palmeras y huevos no molestan
@@ -275,7 +293,7 @@
       onGround: false, face: 1, anim: 0, animT: 0,
       moto: false, weapon: 0, vit: VIT_MAX, inv: 0, star: 0,
       throwT: 0, jumpF: 0, dead: false, deadT: 0, spawnX: x,
-      coyote: 0, jumpBuf: 0
+      coyote: 0, jumpBuf: 0, fireBuf: 0, squash: 0, squashK: 1
     };
   }
 
@@ -303,18 +321,38 @@
     G.p.inv = 90;
     G.bots = []; G.fx = [];
     if (L.boss && G.boss) { G.boss.hp = G.boss.maxhp; G.boss.flash = 0; }
-    G.camF = clamp(sx - vw * 0.42, 0, Math.max(0, L.width - vw));
+    G.camF = clamp(sx - vw * ANCLA, 0, Math.max(0, L.width - vw));
     G.cam = Math.round(G.camF);
     G.camMax = G.cam;
-    setState('ready');
+    // Al reintentar se vuelve derecho al juego, sin pantalla de READY: entre
+    // la animacion de muerte y el cartel se perdian 3,5 segundos por muerte.
+    // El READY queda solo para cuando entras a un round nuevo.
+    setState('play');
+    G.goT = 52;
+    Snd.music(L.boss && G.p.x > L.arenaX ? 'boss' : 'beach');
   }
 
   function addScore(n, x, y) {
     G.score += n;
-    if (x !== undefined) G.fx.push({ t: 'txt', x: x, y: y, vy: -0.55, life: 46, s: String(n) });
+    if (x !== undefined) G.fx.push({ t: 'txt', x: x, y: y, vy: -1.5, life: 46, s: String(n) });
     if (G.score >= G.nextLifeAt) {
       G.nextLifeAt += 20000; G.lives++; Snd.sfx('life');
     }
+  }
+
+  // Aterrizaje: polvo que sale para los costados y achatada de la sprite.
+  // No cambia ninguna regla, pero es lo que hace que el salto se sienta.
+  function aterrizo(p, groundY, vy) {
+    var fuerza = clamp((vy - 3) / 4.5, 0, 1);
+    p.squash = 6 + Math.round(fuerza * 5);
+    p.squashK = 0.80 - fuerza * 0.10;
+    var n = 3 + Math.round(fuerza * 5);
+    for (var i = 0; i < n; i++) {
+      G.fx.push({ t: 'p', x: p.x + p.w / 2, y: groundY - 2,
+        vx: rnd(-1.7, 1.7) * (0.6 + fuerza), vy: rnd(-1.1, -0.2),
+        life: 12 + Math.random() * 10, c: '#e3c993' });
+    }
+    if (fuerza > 0.55) G.shake = Math.max(G.shake, 3);
   }
 
   function puff(x, y, color, n, spd) {
@@ -376,6 +414,10 @@
     if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
       p.vy = -JUMP_V; p.onGround = false; p.coyote = 0; p.jumpBuf = 0;
       p.jumpF = JUMP_HOLD_F;
+      p.squash = 6; p.squashK = 1.16;          // estirada al despegar
+      for (var d = 0; d < 3; d++)
+        G.fx.push({ t: 'p', x: p.x + p.w / 2, y: p.y + p.h - 2,
+          vx: rnd(-1, 1), vy: rnd(-0.3, 0.4), life: 10 + Math.random() * 8, c: '#e3c993' });
       Snd.sfx('jump');
     }
     if (p.jumpF > 0 && I.jump && p.vy < 0) { p.vy -= JUMP_HOLD; p.jumpF--; }
@@ -383,7 +425,9 @@
 
     // ---- tirar botella: se mantiene apretado y sale en rafaga, como el
     // arma arrojadiza del arcade original
-    if ((I.fire || I.fireP) && p.weapon > 0 && p.throwT === 0) {
+    if (p.fireBuf > 0) p.fireBuf--;
+    if ((I.fire || I.fireP || p.fireBuf > 0) && p.weapon > 0 && p.throwT === 0) {
+      p.fireBuf = 0;
       var maxB = p.weapon === 2 ? 6 : 4;
       if (G.bots.length < maxB) {
         throwBottle(p.weapon === 2);
@@ -426,6 +470,7 @@
 
     var top = colTopRange(p.x, p.x + pw);
     if (p.vy >= 0 && top < 1e8 && p.y + ph >= top && prevBottom <= top + Math.max(10, p.vy + 4)) {
+      if (p.vy > 3) aterrizo(p, top, p.vy);
       p.y = top - ph; p.vy = 0; p.onGround = true;
     }
 
@@ -500,6 +545,10 @@
       G.lives++; addScore(0, x, y); Snd.sfx('life');
     }
     G.fx.push({ t: 'txt', x: x - 10, y: y - 14, vy: -0.4, life: 60, s: ITEM_NAME[kind] || '' });
+    // destellos: el item tiene que sentirse como un premio
+    for (var ch = 0; ch < 10; ch++)
+      G.fx.push({ t: 'p', x: x + 5, y: y + 4, vx: rnd(-2.2, 2.2), vy: rnd(-2.6, -0.4),
+        life: 16 + Math.random() * 12, c: ch % 3 ? '#fff6bd' : '#ffd93b' });
   }
 
   function hurtPlayer() {
@@ -685,12 +734,19 @@
 
   var PTS = { crab: 200, frog: 300, gull: 400, octo: 500, coco: 100, rock: 100, bcoco: 50 };
 
+  var COLOR_BICHO = {
+    crab: '#e0332f', frog: '#48b85a', gull: '#ffffff', octo: '#9b5de5',
+    rock: '#9a9aa5', coco: '#8a5a2b', bcoco: '#8a5a2b'
+  };
+
   function destroyEnt(e) {
     e.dead = true;
-    var c = e.t === 'rock' ? '#9a9aa5' : (e.t === 'coco' || e.t === 'bcoco' ? '#8a5a2b' : '#ff9ec4');
-    puff(e.x + e.w / 2, e.y + e.h / 2, c, 8, 1.6);
+    var c = COLOR_BICHO[e.t] || '#ff9ec4';
+    puff(e.x + e.w / 2, e.y + e.h / 2, c, 10, 1.8);
+    puff(e.x + e.w / 2, e.y + e.h / 2, '#ffffff', 4, 2.4);
     addScore(PTS[e.t] || 100, e.x, e.y);
     Snd.sfx('smash');
+    G.freeze = 2;          // corto: con tiro en rafaga, 3 ya se siente trabado
   }
 
   function botsUpdate() {
@@ -731,7 +787,7 @@
       var f = G.fx[i];
       f.life--;
       if (f.t === 'p') { f.vy += 0.13; f.x += f.vx; f.y += f.vy; }
-      else { f.y += f.vy; }
+      else { f.y += f.vy; f.vy *= 0.955; }   // el cartel sube y va frenando
       if (f.life <= 0) G.fx.splice(i, 1);
     }
   }
@@ -748,7 +804,7 @@
 
   function bossHit() {
     var b = G.boss;
-    b.hp--; b.flash = 14; G.shake = 7;
+    b.hp--; b.flash = 14; G.shake = 7; G.freeze = 4;
     addScore(300, b.x + 20, b.y);
     if (b.hp <= 0) {
       b.dead = true; b.deadT = 0;
@@ -804,8 +860,19 @@
 
   function update() {
     G.t++;
+    // Hit-stop: unos frames congelados al reventar algo. El dibujo sigue
+    // corriendo, solo se detiene la simulacion; es lo que le da peso al golpe.
+    // Los toques que caen dentro del congelamiento NO se pierden: si no, el
+    // jugador aprieta saltar justo al matar algo y el salto no sale nunca.
+    if (G.freeze > 0) {
+      G.freeze--;
+      if (global.Input.jumpP && G.p && !G.p.dead) G.p.jumpBuf = 8;
+      if (global.Input.fireP && G.p) G.p.fireBuf = 8;
+      return;
+    }
     if (G.shake > 0) G.shake--;
     if (G.flash > 0) G.flash--;
+    if (G.goT > 0) G.goT--;
     G.stT++;
     var I = global.Input;
 
@@ -856,7 +923,7 @@
         var p = G.p;
         p.vy += GRAV; p.y += p.vy; p.deadT++;
         fxUpdate();
-        if (G.stT > 110) {
+        if (G.stT > 55) {
           G.lives--;
           if (G.lives <= 0) { Snd.jingle('over'); setState('gameover'); }
           else respawn();
@@ -880,8 +947,8 @@
 
       case 'gameover':
         if (G.score > G.hi) G.hi = G.score;
-        if (G.stT > 150 && I.anyP) { saveHi(); setState('title'); }
-        if (G.stT > 480) { saveHi(); setState('title'); }
+        if (G.stT > 60 && I.anyP) { saveHi(); setState('title'); }
+        if (G.stT > 420) { saveHi(); setState('title'); }
         break;
 
       case 'ending':
@@ -899,7 +966,7 @@
 
   function camUpdate() {
     var L = G.level, p = G.p;
-    var target = p.x + p.w / 2 - vw * 0.42;
+    var target = p.x + p.w / 2 - vw * ANCLA;
     target = clamp(target, 0, Math.max(0, L.width - vw));
     // En la pelea la camara sigue a Cami igual, pero nunca deja al Capitan
     // Coco fuera de cuadro.
@@ -940,11 +1007,27 @@
     ctx.fillStyle = 'rgba(255,247,200,0.92)';
     ctx.beginPath(); ctx.arc(vw - 60, 30, 15, 0, 6.284); ctx.fill();
 
-    // nubes
+    // nubes: dos capas a distinta velocidad para que el cielo tenga fondo
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    for (var j = 0; j < 5; j++) {
+      var jx = ((j * 211 + 90) - cam * 0.07) % (vw + 220); if (jx < -110) jx += vw + 220;
+      cloud(ctx, jx - 80, 10 + (j % 2) * 14, 0.75);
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.78)';
     for (var i = 0; i < 7; i++) {
       var cx = ((i * 173 + 40) - cam * 0.18) % (vw + 180); if (cx < -90) cx += vw + 180;
       cloud(ctx, cx - 60, 12 + (i % 3) * 12, 1 + (i % 2) * 0.35);
+    }
+
+    // pajaritos lejanos: dos trazos que aletean
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    for (var b = 0; b < 4; b++) {
+      var bx = ((b * 137 + 60) - cam * 0.1 - G.t * 0.16) % (vw + 160); if (bx < -80) bx += vw + 160;
+      var by = 18 + (b % 3) * 11 + Math.sin(G.t * 0.02 + b) * 3;
+      var ala = ((G.t >> 3) + b) % 2 ? 1 : -1;
+      ctx.fillRect(Math.round(bx - 80), Math.round(by), 2, 1);
+      ctx.fillRect(Math.round(bx - 78), Math.round(by - ala), 2, 1);
+      ctx.fillRect(Math.round(bx - 76), Math.round(by), 2, 1);
     }
 
     // islas lejanas apoyadas en el horizonte
@@ -972,6 +1055,51 @@
       for (var r = 0; r < 3; r++) {
         var wy = HORIZON + 4 + r * 9 + Math.sin((w + G.t * (0.5 + r * 0.2)) * 0.09) * 1.5;
         ctx.fillRect(w + ((G.t * (0.15 + r * 0.1)) % 14), wy, 5 + r, 1);
+      }
+    }
+
+    // Orilla: espuma en la linea donde el mar toca la playa. Sin esto los dos
+    // planos grandes se tocan sin transicion y la escena se lee plana.
+    for (var o = -8; o < vw + 8; o += 4) {
+      var oy = WATER_Y - 3 + Math.sin((o + cam * 0.4 + G.t * 1.3) * 0.055) * 2;
+      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      ctx.fillRect(o, oy, 4, 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(o + 2, oy + 2, 3, 1);
+    }
+    ctx.fillStyle = 'rgba(120,200,230,0.18)';
+    ctx.fillRect(0, WATER_Y - 1, vw, 4);
+  }
+
+  /* Primer plano: pastitos y caracoles al borde de abajo, moviendose mas
+     rapido que el suelo. Llena la franja de arena lisa y da profundidad. */
+  function drawPrimerPlano(ctx) {
+    var cam = G.cam * 1.18;
+    var base = LEVEL_H;
+    for (var i = 0; i < 26; i++) {
+      var wx = i * 73;
+      var x = wx - (cam % (26 * 73));
+      if (x < -40) x += 26 * 73;
+      if (x > vw + 20 || x < -20) continue;
+      var s = (i * 2654435761) % 100;
+      var h = 4 + (s % 4);
+      if (s % 3 === 0) {
+        ctx.fillStyle = '#2f6b39';
+        for (var b = 0; b < 4; b++) {
+          var bx2 = Math.round(x + b * 3);
+          ctx.fillRect(bx2, base - h - (b % 2), 2, h + (b % 2));
+        }
+      } else if (s % 3 === 1) {
+        ctx.fillStyle = '#fff4dd';
+        ctx.fillRect(Math.round(x), base - 5, 6, 4);
+        ctx.fillRect(Math.round(x + 1), base - 7, 4, 2);
+        ctx.fillStyle = '#e0b48a';
+        ctx.fillRect(Math.round(x + 2), base - 5, 2, 3);
+      } else {
+        ctx.fillStyle = '#a89272';
+        ctx.fillRect(Math.round(x), base - 4, 7, 3);
+        ctx.fillStyle = '#8a7658';
+        ctx.fillRect(Math.round(x + 2), base - 5, 3, 2);
       }
     }
   }
@@ -1038,6 +1166,13 @@
         ctx.fillStyle = 'rgba(120,95,60,0.18)';
         ctx.fillRect(x, WATER_Y - 6, TILE, LEVEL_H - WATER_Y + 6);
       }
+      // estratos: la arena deja de ser un bloque liso y se hunde hacia abajo
+      ctx.fillStyle = 'rgba(120,95,60,0.10)';
+      ctx.fillRect(x, top + 14, TILE, 2);
+      ctx.fillStyle = 'rgba(90,70,44,0.13)';
+      ctx.fillRect(x, LEVEL_H - 26, TILE, 26);
+      ctx.fillStyle = 'rgba(70,54,34,0.14)';
+      ctx.fillRect(x, LEVEL_H - 11, TILE, 11);
       // motitas, piedritas y caracoles
       var seed = c * 2654435761 % 1024;
       ctx.fillStyle = 'rgba(120,90,50,0.26)';
@@ -1191,6 +1326,17 @@
       ctx.restore();
       return;
     }
+    // Achatada al aterrizar / estirada al despegar, anclada a los pies
+    if (p.squash > 0) {
+      p.squash--;
+      var k = 1 + (p.squashK - 1) * (p.squash / 11);
+      ctx.save();
+      ctx.translate(Math.round(x + img.width / 2), Math.round(y + img.height));
+      ctx.scale(1 + (1 - k) * 0.6, k);
+      ctx.drawImage(img, -img.width / 2, -img.height);
+      ctx.restore();
+      return;
+    }
     blit(ctx, img, x, y);
   }
 
@@ -1255,27 +1401,49 @@
     ctx.fillStyle = '#3a4a7a';
     ctx.fillRect(0, HUD_H - 1, vw, 1);
 
-    Font.draw(ctx, 'CAMI', 4, 5, '#ffd93b', 1);
-    Font.draw(ctx, pad(G.score, 7), 31, 5, '#ffffff', 1);
-
-    // barra de vitalidad
-    var bx = 78, bw = Math.max(50, vw - 78 - 86), by = 4, bh = 7;
-    ctx.fillStyle = '#000000'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-    ctx.fillStyle = '#1a1f36'; ctx.fillRect(bx, by, bw, bh);
+    // La jerarquia manda: la vitalidad es lo que te mata, asi que domina.
+    // El puntaje pasa a segundo plano, apagado y a la derecha.
     var f = G.p ? G.p.vit / VIT_MAX : 1;
-    var col = f > 0.5 ? '#48b85a' : (f > 0.22 ? '#ffd93b' : '#e0332f');
-    ctx.fillStyle = col;
-    ctx.fillRect(bx, by, Math.round(bw * f), bh);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillRect(bx, by, Math.round(bw * f), 2);
+    var bajo = f <= 0.25;
+    var late = bajo && (G.t >> 2) % 2 === 0;
 
-    // derecha: moto, arma, vidas, round
-    if (G.p && G.p.moto) blit(ctx, S.items.moto, vw - 80, 4);
+    // El lado derecho se arma de derecha a izquierda con anchos fijos, para
+    // que el puntaje nunca se monte encima del round.
+    var vidasN = Math.max(0, G.lives - 1);
+    var anchoVidas = vidasN >= 4 ? 22 : 27;
+    var derecha = 14 + 15 + anchoVidas + 22 + 45;
+
+    blit(ctx, S.items.queso, 3, 4);
+    var bx = 16, bw = clamp(vw - bx - derecha, 40, 190), by = 3, bh = 10;
+    ctx.fillStyle = late ? '#ff9d95' : '#000000';
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    ctx.fillStyle = '#161b30'; ctx.fillRect(bx, by, bw, bh);
+    var col = f > 0.5 ? '#48b85a' : (f > 0.25 ? '#ffd93b' : (late ? '#ff5a52' : '#e0332f'));
+    var llena = Math.round(bw * f);
+    ctx.fillStyle = col; ctx.fillRect(bx, by, llena, bh);
+    ctx.fillStyle = 'rgba(255,255,255,0.38)'; ctx.fillRect(bx, by, llena, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fillRect(bx, by + bh - 2, llena, 2);
+    // marcas cada 25%, apenas insinuadas
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    for (var m = 1; m < 4; m++) ctx.fillRect(bx + Math.round(bw * m / 4), by + 1, 1, bh - 2);
+
+    // --- de derecha a izquierda ---
+    Font.draw(ctx, pad(G.score, 7), vw - 43, 5, 'rgba(255,255,255,0.60)', 1);
+    // area-round, como los arcades: 1-3 es area 1, round 3
+    Font.draw(ctx, '1-' + (G.roundIdx + 1), vw - 63, 5, '#6fd0ff', 1);
+
+    var lx = vw - 63 - anchoVidas;
+    if (vidasN >= 4) {
+      blit(ctx, S.items.vida, lx, 4);
+      Font.draw(ctx, 'X' + vidasN, lx + 11, 5, '#ffffff', 1);
+    } else {
+      for (var v = 0; v < vidasN && v < 3; v++) blit(ctx, S.items.vida, lx + v * 9, 4);
+    }
+
+    var ix = lx - 15;
+    if (G.p && G.p.moto) blit(ctx, S.items.moto, ix, 4);
     if (G.p && G.p.weapon > 0)
-      blit(ctx, G.p.weapon === 2 ? S.items.botella2 : S.items.botella, vw - 64, 3);
-    blit(ctx, S.items.vida, vw - 48, 4);
-    Font.draw(ctx, 'X' + Math.max(0, G.lives - 1), vw - 36, 5, '#ffffff', 1);
-    Font.draw(ctx, 'R' + (G.roundIdx + 1), vw - 15, 5, '#6fd0ff', 1);
+      blit(ctx, G.p.weapon === 2 ? S.items.botella2 : S.items.botella, ix - 13, 3);
   }
 
   /* ---------- pantallas ---------- */
@@ -1320,8 +1488,7 @@
 
   function drawReady(ctx) {
     var cx = vw / 2;
-    ctx.fillStyle = 'rgba(6,10,26,0.72)';
-    ctx.fillRect(0, 0, vw, LEVEL_H);
+    cortina(ctx, G.stT / 14);
     Font.drawCenter(ctx, G.level.name, cx, LEVEL_H / 2 - 26, '#ffd93b', 3);
     Font.drawCenter(ctx, 'CAMI  X ' + Math.max(0, G.lives - 1), cx, LEVEL_H / 2 + 6, '#ffffff', 2);
     if (G.roundIdx === 0 && G.stT < 96)
@@ -1330,10 +1497,22 @@
       Font.drawCenter(ctx, 'AL FINAL ESTA ROSITA', cx, LEVEL_H / 2 + 30, '#6fd0ff', 1);
   }
 
+  /* Cortina de barras: las pantallas entran cerrandose en tiras en vez de
+     aparecer de golpe con un velo plano. */
+  function cortina(ctx, t) {
+    var n = 12, bw = Math.ceil(vw / n);
+    ctx.fillStyle = 'rgba(6,10,26,0.88)';
+    for (var i = 0; i < n; i++) {
+      var d = clamp(t * 1.7 - (i / n) * 0.5 - (i % 2 ? 0.18 : 0), 0, 1);
+      var h = Math.round(LEVEL_H * d);
+      if (i % 2) ctx.fillRect(i * bw, LEVEL_H - h, bw, h);
+      else ctx.fillRect(i * bw, 0, bw, h);
+    }
+  }
+
   function drawClear(ctx) {
     var cx = vw / 2;
-    ctx.fillStyle = 'rgba(6,10,26,0.78)';
-    ctx.fillRect(0, 0, vw, LEVEL_H);
+    cortina(ctx, G.stT / 18);
     Font.drawCenter(ctx, G.level.name + ' LISTO', cx, LEVEL_H / 2 - 28, '#ffd93b', 3);
     Font.drawCenter(ctx, 'BONUS VITALIDAD  ' + pad(G.bonus, 5), cx, LEVEL_H / 2 + 6, '#ffffff', 2);
     Font.drawCenter(ctx, 'PUNTAJE  ' + pad(G.score, 7), cx, LEVEL_H / 2 + 28, '#6fd0ff', 1);
@@ -1341,13 +1520,13 @@
 
   function drawGameOver(ctx) {
     var cx = vw / 2;
-    ctx.fillStyle = 'rgba(6,10,26,0.82)';
-    ctx.fillRect(0, 0, vw, LEVEL_H);
+    cortina(ctx, G.stT / 20);
     Font.drawCenter(ctx, 'GAME OVER', cx, LEVEL_H / 2 - 24, '#e0332f', 4);
     Font.drawCenter(ctx, 'ROSITA TE ESPERA', cx, LEVEL_H / 2 + 12, '#ffffff', 1);
     Font.drawCenter(ctx, 'PUNTAJE  ' + pad(G.score, 7), cx, LEVEL_H / 2 + 26, '#ffd93b', 1);
-    if (G.stT > 150 && (G.t >> 4) % 2 === 0)
-      Font.drawCenter(ctx, 'TOCA PARA VOLVER', cx, LEVEL_H / 2 + 44, '#6fd0ff', 1);
+    if (G.stT > 60 && (G.t >> 4) % 2 === 0)
+      Font.drawCenter(ctx, G.inputMode === 'teclado' ? 'APRETA UNA TECLA' : 'TOCA PARA VOLVER',
+        cx, LEVEL_H / 2 + 44, '#6fd0ff', 1);
   }
 
   function drawEnding(ctx) {
@@ -1408,7 +1587,28 @@
     drawBots(ctx);
     drawPlayer(ctx);
     drawFx(ctx);
+    drawPrimerPlano(ctx);
 
+    // Vitalidad en rojo: halo en los bordes. Es el aviso que hoy no existe y
+    // hace que te quedes sin nada sin haberte enterado.
+    if (G.p && G.st === 'play' && G.p.vit / VIT_MAX < 0.25) {
+      var pulso = 0.10 + 0.10 * Math.sin(G.t * 0.18);
+      var vg = ctx.createLinearGradient(0, 0, 0, LEVEL_H);
+      vg.addColorStop(0, 'rgba(224,51,47,' + pulso.toFixed(3) + ')');
+      vg.addColorStop(0.45, 'rgba(224,51,47,0)');
+      vg.addColorStop(1, 'rgba(224,51,47,' + pulso.toFixed(3) + ')');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, vw, LEVEL_H);
+    }
+
+    if (G.goT > 0 && G.st === 'play') {
+      var gk = G.goT > 40 ? (52 - G.goT) / 12 : Math.min(1, G.goT / 12);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, gk));
+      Font.drawCenter(ctx, 'GO!', vw / 2, LEVEL_H / 2 - 20, '#12100f', 4);
+      Font.drawCenter(ctx, 'GO!', vw / 2 - 1, LEVEL_H / 2 - 21, '#ffd93b', 4);
+      ctx.restore();
+    }
     if (G.st === 'ready') drawReady(ctx);
     if (G.st === 'clear') drawClear(ctx);
     if (G.st === 'gameover') drawGameOver(ctx);

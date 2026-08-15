@@ -103,5 +103,52 @@
     return ev;
   }
 
-  global.WCBot = { run: run, step: step };
+  /* ------------------------------------------------------------------ */
+  /* Test del novato: modela a una persona de verdad, no a un robot.
+     Reacciona 200 ms tarde, salta cuando ve el peligro a una distancia que
+     varia (45-105 px, variabilidad humana) y salta los pozos cerca del borde.
+     CRITERIO: tiene que terminar el Round 1 muriendo poco o nada.
+     Antes del pase de UX hacia GAME OVER a los 2 segundos, siempre.        */
+  function novato(round) {
+    var I = global.Input;
+    Game._round(round || 0);
+    G.st = 'play'; G.stT = 0; G.lives = 3; G.score = 0;
+    var muertes = [], cola = [], vista = 75, i, j;
+    for (i = 0; i < 15000; i++) {
+      var p = G.p;
+      if (!p) break;
+      if (i % 40 === 0) vista = 45 + Math.random() * 60;
+      var quiere = false;
+      var c = Math.floor((p.x + p.w) / 16);
+      for (var k = 1; k <= 5; k++) {
+        if (G.level.g[c + k] === 0) {
+          if ((c + k) * 16 - (p.x + p.w) < 30) quiere = true;
+          break;
+        }
+      }
+      for (var e = 0; e < G.ents.length; e++) {
+        var en = G.ents[e];
+        if (['crab', 'frog', 'rock', 'fire', 'gull', 'coco'].indexOf(en.t) < 0) continue;
+        var dx = en.x - (p.x + p.w);
+        if (dx > -6 && dx < vista) quiere = true;
+      }
+      cola.push(quiere);
+      var dec = cola.length > 12 ? cola.shift() : false;
+      I.left = false; I.right = true;
+      I.jumpP = dec && p.onGround;
+      I.fire = p.weapon > 0; I.fireP = false; I.anyP = false;
+      Game.update();
+      if (G.st === 'dying') {
+        muertes.push(Math.round((G.p.x / 2.1) / 60) + 's');
+        for (j = 0; j < 300 && G.st !== 'play'; j++) { G.lives = 3; I.jumpP = false; Game.update(); }
+        cola = [];
+      }
+      if (G.st === 'clear') {
+        return 'TERMINO' + (muertes.length ? (' — murio en ' + muertes.join(', ')) : ' SIN MORIR');
+      }
+    }
+    return 'NO TERMINO. muertes: ' + muertes.slice(0, 10).join(', ');
+  }
+
+  global.WCBot = { run: run, step: step, novato: novato };
 })(window);

@@ -27,7 +27,10 @@
     sky: ['#37c0ee', '#8fe3f7', '#f6e7b8'],
     sea: '#1f7fbf',
     g: ground(
-      '3*32 4*6 3*10 0*3 3*12 5*5 4*3 3*10 0*3 3*14 0*4 3*10 ' +
+      // El primer pozo del juego es de 2 tiles y llega despues de 14 columnas
+      // llanas: con 3 tiles la ventana para saltarlo es de 0,3 s y es lo
+      // primero que hace tropezar a alguien que recien agarra el juego.
+      '3*32 4*6 3*14 0*2 3*12 5*5 4*3 3*10 0*3 3*14 0*4 3*10 ' +
       '4*8 3*12 0*3 3*10 5*6 3*13 0*4 3*16 4*4 3*20'),
     ents: [
       { t: 'palm', c: 8 }, { t: 'palm', c: 38, coco: 1 }, { t: 'palm', c: 66 },
@@ -37,9 +40,12 @@
       { t: 'crab', c: 96 }, { t: 'crab', c: 122 }, { t: 'crab', c: 151 }, { t: 'crab', c: 178 },
       { t: 'rock', c: 61 }, { t: 'rock', c: 112 }, { t: 'rock', c: 166 },
       { t: 'frog', c: 79 }, { t: 'frog', c: 132 },
-      { t: 'gull', c: 102 }, 
-      { t: 'egg', c: 14, item: 'queso' },
-      { t: 'egg', c: 55, item: 'botella' },
+      // Sin gaviotas en el Round 1: es el enemigo que mas precision exige y
+      // conviene que debute cuando ya sabes tirar. Aparecen desde el Round 2.
+      // La botella va en el PRIMER huevo: hay que tener el arma antes de
+      // cruzarse el primer bicho, no despues.
+      { t: 'egg', c: 12, item: 'botella' },
+      { t: 'egg', c: 40, item: 'queso' },
       // La moto entra temprano: el Round 1 hace de tutorial y conviene
       // tener pista por delante para acostumbrarse a que no frena.
       { t: 'egg', c: 83, item: 'moto' },
@@ -48,7 +54,12 @@
       { t: 'egg', c: 158, item: 'queso' },
       { t: 'egg', c: 196, item: 'queso' }
     ],
-    checkpoint: 104
+    checkpoint: 104,
+    // Los primeros 30 tiles son costa libre: corres, agarras la botella y
+    // recien despues aparece el primer cangrejo. La rampa de ritmo dura casi
+    // medio round.
+    zonaSegura: 30,
+    rampa: 0.45
   };
 
   /* ------------------------------------------------------------------ */
@@ -83,7 +94,9 @@
       { t: 'egg', c: 184, item: 'mani' },
       { t: 'egg', c: 203, item: 'vida' }
     ],
-    checkpoint: 110
+    checkpoint: 110,
+    zonaSegura: 12,
+    rampa: 0.2
   };
 
   /* ------------------------------------------------------------------ */
@@ -118,7 +131,9 @@
       { t: 'egg', c: 170, item: 'estrella' },
       { t: 'egg', c: 196, item: 'queso' }
     ],
-    checkpoint: 108
+    checkpoint: 108,
+    zonaSegura: 10,
+    rampa: 0.15
   };
 
   /* ------------------------------------------------------------------ */
@@ -161,6 +176,8 @@
       { t: 'egg', c: 220, item: 'botella2' }
     ],
     checkpoint: 100,
+    zonaSegura: 8,
+    rampa: 0.1,
     boss: true,
     bossCol: 232,     // donde se planta el Capitan Coco
     arenaCol: 206     // desde aca no se puede volver: arranca la pelea

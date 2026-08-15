@@ -103,6 +103,18 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 14. **La botella principal sale casi recta.** Si vuelve a salir en arco alto,
     el arma deja de servir a menos de 150 px, que es justo cuando la necesitás
     contra algo que se te viene encima.
+15. **La entrada de cada round tiene zona segura y rampa de ritmo**
+    (`zonaSegura` y `rampa` en `js/levels.js`, aplicadas por `sepEn()` y
+    `placeHazardCol()`). En el Round 1 los primeros 30 tiles no llevan ningún
+    peligro y la separación mínima arranca en 18 columnas y baja a 4 recién en
+    la mitad del round. Sin esto el primer cangrejo ya estaba en pantalla en el
+    frame 0 y una persona con reflejos normales hacía GAME OVER a los 2 s.
+16. **La botella va en el primer huevo del Round 1.** Hay que tener arma antes
+    de cruzarse el primer bicho, nunca después.
+17. **El hit-stop no puede comerse los toques.** Durante `G.freeze` la
+    simulación está detenida, así que el salto y el tiro se guardan en
+    `jumpBuf`/`fireBuf`. Sin eso apretás justo al matar algo y la acción no sale
+    nunca: medido, le costaba al autopiloto 6 muertes por corrida.
 
 ## Números del balance
 
@@ -118,6 +130,9 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 | Salto | v=7.8, g=0.38 | 80 px de alto, ~86 px de alcance (120 en moto) |
 | Vitalidad | 100 en 52 s | obliga a comer, como el original |
 | Vidas | 3 + 1 cada 20.000 puntos | |
+| Anclaje de cámara | `ANCLA = 0.32` | Cami al 32% del ancho. Cuanto más chico, más terreno ves por delante. A 0.42 tenías 226 px de aviso (1,8 s); a 0.32 son 265 px |
+| Ciclo de muerte | 55 frames + sin READY | 0,9 s desde que morís hasta que jugás. El READY quedó solo para rounds nuevos |
+| Hit-stop | 2 frames (4 en el jefe) | ver invariante 17 |
 
 Si cambiás el salto, **recalculá el ancho de los muelles** (punto 2).
 
@@ -135,6 +150,21 @@ window.WC_DEBUG = true   // loguea cada muerte con su causa
 El autopiloto corre a la derecha, salta pozos y bichos, tira botellas y mantiene
 distancia con el jefe. **Debe terminar el área en la mayoría de las corridas.**
 Si se traba siempre en la misma columna, es un problema de diseño, no del bot.
+
+### Test del novato — la prueba que importa
+
+```js
+WCBot.novato(0)          // Round 1 con un jugador de reflejos normales
+```
+
+Modela a una persona: reacciona **200 ms tarde**, salta cuando ve el peligro a
+una distancia que varía entre 45 y 105 px, y salta los pozos cerca del borde.
+
+> **Criterio: tiene que terminar el Round 1, muriendo poco o nada.**
+> Antes del pase de UX hacía GAME OVER a los 2 segundos, siempre.
+
+El autopiloto normal es un experto y no sirve para medir si el juego es
+accesible: pasaba rounds que a una persona la mataban en dos segundos.
 
 También hay una validación geométrica: ningún hueco entre apoyos puede superar
 4 tiles y no puede haber paredes de más de 1 tile entre tierra y tierra.
