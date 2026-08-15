@@ -43,9 +43,10 @@ armada.
   Al morir perdés la moto y la botella doble, pero volvés con una botella
   simple si tenías arma.
 - Los **huevos** del camino esconden ítems:
-  - 🏍️ **Moto** — vas más rápido pero **no podés frenar**. Si te golpea un
-    enemigo u obstáculo perdés la moto, no la vida. Lo que sí te mata con la
-    moto puesta es caer al agua: ojo con los pozos.
+  - 🏍️ **Moto** — vas más rápido. **No podés parar, pero sí frenar**: mantené
+    ◀ (o la flecha izquierda) y baja bastante la velocidad, como la patineta
+    del Wonder Boy original. Si te golpea un enemigo u obstáculo perdés la
+    moto, no la vida. Lo que sí te mata es caer al agua: ojo con los pozos.
   - 🍷 **Botella** — tu arma. La **doble** tira dos de una.
   - ⭐ **Estrella** — invencible ocho segundos.
   - **1UP** — una vida más.

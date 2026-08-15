@@ -10,7 +10,13 @@
 
   // Fisica
   var GRAV = 0.38, MAXFALL = 7.5;
-  var RUN = 2.1, SPRINT = 2.85, ACC = 0.5, MOTO_SPEED = 3.1;
+  var RUN = 2.1, SPRINT = 2.85, ACC = 0.5;
+  // Moto: como la patineta del Wonder Boy original, no se puede parar del todo
+  // pero si bajar bastante la velocidad. El minimo es igual a la velocidad a
+  // pie a proposito: por debajo de 2.1 no alcanzaria para cruzar un pozo de 4
+  // tiles y frenar (que es algo que el juego te invita a hacer) se volveria
+  // una trampa.
+  var MOTO_MAX = 3.1, MOTO_CRUCERO = 2.6, MOTO_MIN = 2.1;
   var JUMP_V = 7.8, JUMP_HOLD = 0.22, JUMP_HOLD_F = 11;
   var VIT_MAX = 100, VIT_DRAIN = 100 / (52 * 60);
 
@@ -388,7 +394,12 @@
 
     // ---- horizontal
     if (p.moto) {
-      p.vx = MOTO_SPEED; p.face = 1;
+      // adelante acelera, atras frena, sin nada va en crucero. Nunca para ni
+      // retrocede: la moto siempre te lleva.
+      var meta = I.right ? MOTO_MAX : (I.left ? MOTO_MIN : MOTO_CRUCERO);
+      if (p.vx < meta) p.vx = Math.min(meta, p.vx + 0.09);
+      else p.vx = Math.max(meta, p.vx - 0.13);
+      p.face = 1;
     } else {
       var want = 0;
       if (I.left) want -= 1;

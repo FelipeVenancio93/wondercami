@@ -126,7 +126,7 @@ después de encontrar bucles de muerte reales; si tocás niveles, respetalas.
 | Botella principal | vx 3.4, vy −1.1 | **casi recta**. Con el arco de antes pasaba por encima de todo lo que estuviera a menos de 150 px |
 | Botella de la doble | vx 2.3, vy −4.0 | lobeada, para lo lejano y lo alto |
 | Buffer de salto | 6 frames, solo cayendo | ver invariante 13 |
-| Velocidad en moto | 3.1 px/frame | no se puede frenar |
+| Moto | 3.1 adelante / 2.6 crucero / **2.1 frenando** | como la patineta del original: no para ni retrocede, pero se puede bajar la velocidad. **El mínimo no puede bajar de 2.1**: por debajo no alcanza para cruzar un pozo de 4 tiles y frenar se volvería una trampa |
 | Salto | v=7.8, g=0.38 | 80 px de alto, ~86 px de alcance (120 en moto) |
 | Vitalidad | 100 en 52 s | obliga a comer, como el original |
 | Vidas | 3 + 1 cada 20.000 puntos | |
